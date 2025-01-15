@@ -10,22 +10,15 @@ export async function POST(req: Request) {
     await dbConnect();
     console.log('Connected to database');
 
-    const { name, address, city, state, country, password, contact_number, email } = await req.json();
+    const { name, address, city, state, country, password, contact_number, email = null } = await req.json();
     console.log('Request body parsed');
 
-    // Create query object with proper typing
-    const query: { contact_number: string; $or?: Array<{ [key: string]: string }> } = {
-      contact_number
-    };
-    
-    if (email) {
-      query.$or = [
-        { contact_number },
-        { email }
-      ];
-    }
-    
-    const existingAgent = await Agent.findOne(query);
+    const existingAgent = await Agent.findOne({
+      $or: [
+        ...(email ? [{ email }] : []),
+        { contact_number }
+      ]
+    });
     if (existingAgent) {
       console.log('Account with this email or contact number already exists');
       return NextResponse.json({ error: 'Account with this email or contact number already exists' }, { status: 400 });
@@ -43,7 +36,7 @@ export async function POST(req: Request) {
       country,
       password: hashedPassword,
       contact_number,
-      email: email || undefined,  // Use undefined instead of null
+      email,
     });
 
     console.log('Saving new agent');
