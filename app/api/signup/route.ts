@@ -13,12 +13,13 @@ export async function POST(req: Request) {
     const { name, address, city, state, country, password, contact_number, email } = await req.json();
     console.log('Request body parsed');
 
-    if (email) {
-      const existingAgent = await Agent.findOne({ email });
-      if (existingAgent) {
-        console.log('Email already exists');
-        return NextResponse.json({ error: 'Email already exists' }, { status: 400 });
-      }
+    // Check if account already exists based on either email or contact number
+    const existingAgent = await Agent.findOne({
+      $or: [{ email }, { contact_number }]
+    });
+    if (existingAgent) {
+      console.log('Account with this email or contact number already exists');
+      return NextResponse.json({ error: 'Account with this email or contact number already exists' }, { status: 400 });
     }
 
     console.log('Hashing password');
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
       country,
       password: hashedPassword,
       contact_number,
-      email: email || null, // Allow null email
+      email: email || null, // If no email provided, store null
     });
 
     console.log('Saving new agent');
