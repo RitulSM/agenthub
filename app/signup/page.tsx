@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-// Zod validation schema
+
 const registerSchema = z.object({
   name: z
     .string()
@@ -50,16 +50,17 @@ const registerSchema = z.object({
     .min(6, "Password must be at least 6 characters"),
 });
 
+type FormFields = z.infer<typeof registerSchema>;
+
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
   const router = useRouter();
 
-  const validateField = (name: string, value: string) => {
+  const validateField = (name: keyof FormFields, value: string) => {
     try {
-      const fieldSchema = registerSchema.pick({ [name]: true });
-
+      const fieldSchema = z.object({ [name]: registerSchema.shape[name] });
       fieldSchema.parse({ [name]: value });
       setErrors(prev => ({ ...prev, [name]: "" }));
     } catch (error) {
@@ -74,7 +75,7 @@ export default function RegisterPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    validateField(name, value);
+    validateField(name as keyof FormFields, value);
   };
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -110,10 +111,10 @@ export default function RegisterPage() {
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const newErrors: Record<string, string> = {};
+        const newErrors: Partial<Record<keyof FormFields, string>> = {};
         error.errors.forEach((err) => {
           if (err.path) {
-            newErrors[err.path[0]] = err.message;
+            newErrors[err.path[0] as keyof FormFields] = err.message;
           }
         });
         setErrors(newErrors);
