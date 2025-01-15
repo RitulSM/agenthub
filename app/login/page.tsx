@@ -8,10 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import * as z from "zod";
+
+const identifierSchema = z.string().min(5).regex(/^[a-zA-Z0-9@.]+$/, "Invalid email or phone number.");
+const passwordSchema = z.string().min(6, "Password must be at least 6 characters long.");
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<{ identifier?: string; password?: string }>({});
   const router = useRouter();
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -22,14 +27,14 @@ export default function LoginPage() {
     const identifier = formData.get("identifier") as string;
     const password = formData.get("password") as string;
 
-    if (!identifier || identifier.length < 5) {
-      alert("Please enter a valid email or phone number.");
-      setIsLoading(false);
-      return;
-    }
+    const identifierValidation = identifierSchema.safeParse(identifier);
+    const passwordValidation = passwordSchema.safeParse(password);
 
-    if (password.length < 6) {
-      alert("Password must be at least 6 characters long.");
+    if (!identifierValidation.success || !passwordValidation.success) {
+      setErrors({
+        identifier: identifierValidation.success ? undefined : identifierValidation.error.errors[0].message,
+        password: passwordValidation.success ? undefined : passwordValidation.error.errors[0].message,
+      });
       setIsLoading(false);
       return;
     }
@@ -78,8 +83,11 @@ export default function LoginPage() {
                 type="text"
                 placeholder="Enter Email or Phone Number"
                 required
-                className="mt-1"
+                className={`mt-1 ${errors.identifier ? "border-red-500" : ""}`}
               />
+              {errors.identifier && (
+                <p className="text-red-500 text-sm mt-1">{errors.identifier}</p>
+              )}
             </div>
 
             <div>
@@ -91,7 +99,7 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   required
                   placeholder="Enter Password"
-                  className="mt-1"
+                  className={`mt-1 ${errors.password ? "border-red-500" : ""}`}
                 />
                 <button
                   type="button"
@@ -101,6 +109,9 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {errors.password && (
+                <p className="text-red-500 text-sm mt-1">{errors.password}</p>
+              )}
             </div>
 
             <div className="flex items-center justify-between">

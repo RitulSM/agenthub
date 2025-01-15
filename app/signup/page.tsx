@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { z } from "zod"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff } from 'lucide-react'
@@ -8,85 +9,118 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
+// Zod validation schema
+const registerSchema = z.object({
+  name: z
+    .string()
+    .min(2, "Name must be at least 2 characters")
+    .regex(/^[a-zA-Z\s]+$/, "Name can only contain letters and spaces"),
+  email: z
+    .string()
+    .email("Invalid email format")
+    .regex(
+      /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/,
+      "Please enter a valid email address"
+    )
+    .optional()
+    .or(z.literal("")),
+  contact_number: z
+    .string()
+    .regex(
+      /^\d{10}$/,
+      "Please enter a valid 10-digit phone number"
+    ),
+  address: z
+    .string()
+    .min(5, "Address must be at least 5 characters"),
+  city: z
+    .string()
+    .min(2, "City must be at least 2 characters")
+    .regex(/^[a-zA-Z\s]+$/, "City can only contain letters and spaces"),
+  state: z
+    .string()
+    .min(2, "State must be at least 2 characters")
+    .regex(/^[a-zA-Z\s]+$/, "State can only contain letters and spaces"),
+  country: z
+    .string()
+    .min(2, "Country must be at least 2 characters")
+    .regex(/^[a-zA-Z\s]+$/, "Country can only contain letters and spaces"),
+  password: z
+    .string()
+    .min(6, "Password must be at least 6 characters"),
+});
+
 export default function RegisterPage() {
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const router = useRouter();
+
+  const validateField = (name: string, value: string) => {
+    try {
+      const fieldSchema = registerSchema.pick({ [name]: true });
+
+      fieldSchema.parse({ [name]: value });
+      setErrors(prev => ({ ...prev, [name]: "" }));
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        setErrors(prev => ({
+          ...prev,
+          [name]: error.errors[0]?.message || "Invalid input"
+        }));
+      }
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    validateField(name, value);
+  };
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setIsLoading(true)
+    event.preventDefault();
+    setIsLoading(true);
 
-    const formData = new FormData(event.currentTarget)
+    const formData = new FormData(event.currentTarget);
     const data = {
-      name: formData.get("name"),
-      email: formData.get("email") || "",  // Making email optional
-      password: formData.get("password"),
-      contact_number: formData.get("contact_number"),
-      address: formData.get("address"),
-      city: formData.get("city"),
-      state: formData.get("state"),
-      country: formData.get("country"),
-    }
-
-    // Validation
-    if (!data.name || data.name.toString().trim().length < 2) {
-      alert("Full Name must be at least 2 characters long.")
-      setIsLoading(false)
-      return
-    }
-    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.toString())) {  // Validating email only if provided
-      alert("Enter a valid email address.")
-      setIsLoading(false)
-      return
-    }
-    if (!data.contact_number || !/^\d{10}$/.test(data.contact_number.toString())) {
-      alert("Enter a valid 10-digit contact number.")
-      setIsLoading(false)
-      return
-    }
-    if (!data.address || data.address.toString().trim().length < 5) {
-      alert("Address must be at least 5 characters long.")
-      setIsLoading(false)
-      return
-    }
-    if (!data.city || data.city.toString().trim().length < 2) {
-      alert("City must be at least 2 characters long.")
-      setIsLoading(false)
-      return
-    }
-    if (!data.state || data.state.toString().trim().length < 2) {
-      alert("State must be at least 2 characters long.")
-      setIsLoading(false)
-      return
-    }
-    if (!data.country || data.country.toString().trim().length < 2) {
-      alert("Country must be at least 2 characters long.")
-      setIsLoading(false)
-      return
-    }
-    if (!data.password || data.password.toString().length < 6) {
-      alert("Password must be at least 6 characters long.")
-      setIsLoading(false)
-      return
-    }
+      name: formData.get("name")?.toString() || "",
+      email: formData.get("email")?.toString() || "",
+      password: formData.get("password")?.toString() || "",
+      contact_number: formData.get("contact_number")?.toString() || "",
+      address: formData.get("address")?.toString() || "",
+      city: formData.get("city")?.toString() || "",
+      state: formData.get("state")?.toString() || "",
+      country: formData.get("country")?.toString() || "",
+    };
 
     try {
+      // Validate all fields
+      registerSchema.parse(data);
+
       const response = await fetch("/api/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      })
+      });
 
       if (response.ok) {
-        router.push("/dashboard")
+        router.push("/dashboard");
       } else {
-        throw new Error("Registration failed")
+        throw new Error("Registration failed");
       }
     } catch (error) {
-      console.error(error)
+      if (error instanceof z.ZodError) {
+        const newErrors: Record<string, string> = {};
+        error.errors.forEach((err) => {
+          if (err.path) {
+            newErrors[err.path[0]] = err.message;
+          }
+        });
+        setErrors(newErrors);
+      }
+      console.error(error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
@@ -115,8 +149,12 @@ export default function RegisterPage() {
                 type="text"
                 required
                 placeholder="Enter Full Name"
-                className="mt-1"
+                className={`mt-1 ${errors.name ? "border-red-500" : ""}`}
+                onChange={handleInputChange}
               />
+              {errors.name && (
+                <p className="text-red-500 text-sm mt-1">{errors.name}</p>
+              )}
             </div>
 
             <div>
@@ -126,8 +164,12 @@ export default function RegisterPage() {
                 name="email"
                 type="email"
                 placeholder="Enter Email id"
-                className="mt-1"
+                className={`mt-1 ${errors.email ? "border-red-500" : ""}`}
+                onChange={handleInputChange}
               />
+              {errors.email && (
+                <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+              )}
             </div>
 
             <div>
@@ -138,8 +180,12 @@ export default function RegisterPage() {
                 type="tel"
                 required
                 placeholder="Your phone number"
-                className="mt-1"
+                className={`mt-1 ${errors.contact_number ? "border-red-500" : ""}`}
+                onChange={handleInputChange}
               />
+              {errors.contact_number && (
+                <p className="text-red-500 text-sm mt-1">{errors.contact_number}</p>
+              )}
             </div>
 
             <div>
@@ -150,8 +196,12 @@ export default function RegisterPage() {
                 type="text"
                 required
                 placeholder="Your street address"
-                className="mt-1"
+                className={`mt-1 ${errors.address ? "border-red-500" : ""}`}
+                onChange={handleInputChange}
               />
+              {errors.address && (
+                <p className="text-red-500 text-sm mt-1">{errors.address}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -163,8 +213,12 @@ export default function RegisterPage() {
                   type="text"
                   required
                   placeholder="Your city"
-                  className="mt-1"
+                  className={`mt-1 ${errors.city ? "border-red-500" : ""}`}
+                  onChange={handleInputChange}
                 />
+                {errors.city && (
+                  <p className="text-red-500 text-sm mt-1">{errors.city}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="state">State</Label>
@@ -174,8 +228,12 @@ export default function RegisterPage() {
                   type="text"
                   required
                   placeholder="Your state"
-                  className="mt-1"
+                  className={`mt-1 ${errors.state ? "border-red-500" : ""}`}
+                  onChange={handleInputChange}
                 />
+                {errors.state && (
+                  <p className="text-red-500 text-sm mt-1">{errors.state}</p>
+                )}
               </div>
             </div>
 
@@ -187,8 +245,12 @@ export default function RegisterPage() {
                 type="text"
                 required
                 placeholder="Your country"
-                className="mt-1"
+                className={`mt-1 ${errors.country ? "border-red-500" : ""}`}
+                onChange={handleInputChange}
               />
+              {errors.country && (
+                <p className="text-red-500 text-sm mt-1">{errors.country}</p>
+              )}
             </div>
 
             <div>
@@ -197,27 +259,31 @@ export default function RegisterPage() {
                 <Input
                   id="password"
                   name="password"
-                  placeholder="Enter Password"
                   type={showPassword ? "text" : "password"}
                   required
-                  className="mt-1"
+                  placeholder="Enter password"
+                  className={`mt-1 ${errors.password ? "border-red-500" : ""}`}
+                  onChange={handleInputChange}
                 />
                 <button
                   type="button"
+                  className="absolute right-2 top-2"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? <EyeOff /> : <Eye />}
                 </button>
               </div>
+              {errors.password && (
+                <p className="text-red-500 text-sm mt-1">{errors.password}</p>
+              )}
             </div>
           </div>
 
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Creating account..." : "Create Account"}
+            {isLoading ? "Registering..." : "Register"}
           </Button>
         </form>
       </div>
     </div>
-  )
+  );
 }
